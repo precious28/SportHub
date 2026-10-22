@@ -590,11 +590,15 @@ public class WhatsAppWebhookController : ControllerBase
             }
 
             // Return future fixtures only, sorted by date
+            _logger.LogInformation("Total fixtures collected: {Count}", allFixtures.Count);
+            
             var futureFixtures = allFixtures
                 .Where(f => f.MatchDate >= DateTime.Today)
                 .OrderBy(f => f.MatchDate)
                 .ThenBy(f => f.MatchTime)
                 .ToList();
+            
+            _logger.LogInformation("Future fixtures after date filtering: {Count}", futureFixtures.Count);
             
             return futureFixtures;
         }
