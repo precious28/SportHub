@@ -23,28 +23,20 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Chat with AI assistant - Used by web frontend
-    /// TODO: Integrate with Bedrock Agent Harness when credentials are configured
+    /// General chat endpoint - No event context
     /// </summary>
     [HttpPost("invoke")]
-    public async Task<IActionResult> InvokeAgent([FromBody] ChatRequest request)
+    public async Task<IActionResult> InvokeAgent([FromBody] GeneralChatRequest request)
     {
         try
         {
             var sessionId = request.SessionId ?? Guid.NewGuid().ToString();
             
-            _logger.LogInformation("Chat request received: {Message}, Session: {SessionId}, EventId: {EventId}, TeamName: {TeamName}", 
-                request.Message, sessionId, request.EventId, request.TeamName);
+            _logger.LogInformation("General chat request: {Message}, Session: {SessionId}", 
+                request.Message, sessionId);
 
-            // Get event info if eventId provided
-            string? eventContext = null;
-            if (request.EventId.HasValue)
-            {
-                eventContext = await GetEventContextAsync(request.EventId.Value);
-            }
-
-            // Handle fixture queries
-            var response = await GetResponseAsync(request.Message, eventContext, request.EventId, request.TeamName);
+            // General chat responses (like WhatsApp without phone number context)
+            var response = await GetGeneralChatResponseAsync(request.Message);
 
             var result = new ChatResponse(
                 sessionId,
@@ -56,7 +48,42 @@ public class ChatController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing chat request");
+            _logger.LogError(ex, "Error processing general chat request");
+            return StatusCode(500, new { error = "Failed to process chat request", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Event-specific chat endpoint - Coach is viewing a specific event on dashboard
+    /// Bot knows the event context and can help with registration, fixtures for that event, etc.
+    /// </summary>
+    [HttpPost("invoke-event")]
+    public async Task<IActionResult> InvokeAgentWithEvent([FromBody] EventChatRequest request)
+    {
+        try
+        {
+            var sessionId = request.SessionId ?? Guid.NewGuid().ToString();
+            
+            _logger.LogInformation("Event chat request: {Message}, Session: {SessionId}, EventId: {EventId}", 
+                request.Message, sessionId, request.EventId);
+
+            // Get event info
+            string? eventName = await GetEventContextAsync(request.EventId);
+
+            // Event-specific chat (coach is looking at Event 4, help them with that event)
+            var response = await GetEventChatResponseAsync(request.Message, request.EventId, eventName);
+
+            var result = new ChatResponse(
+                sessionId,
+                response,
+                DateTime.UtcNow
+            );
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing event chat request");
             return StatusCode(500, new { error = "Failed to process chat request", details = ex.Message });
         }
     }
@@ -116,6 +143,175 @@ public class ChatController : ControllerBase
             _logger.LogWarning(ex, "Failed to fetch events");
         }
         return new List<(int, string, DateTime)>();
+    }
+
+    private async Task<string> GetGeneralChatResponseAsync(string message)
+    {
+        var messageLower = message.ToLower();
+        
+        // Handle fixture queries - need to ask for team/coach name (like WhatsApp without phone)
+        if (messageLower.Contains("fixture") || messageLower.Contains("match") || messageLower.Contains("schedule"))
+        {
+            // Try to extract team/coach name from message
+            var teamName = ExtractTeamOrCoachName(message, messageLower);
+            
+            if (!string.IsNullOrEmpty(teamName))
+            {
+                return await GetFixturesResponseAsync(null, teamName);
+            }
+            
+            return "📋 *Let me find your fixtures!*\n\n" +
+                   "Please provide either:\n" +
+                   "• Your **team name**, or\n" +
+                   "• Your **coach name**\n\n" +
+                   "Example: \"Show fixtures for Pretoria Ladies FC\" or \"Coach John Smith\"";
+        }
+        
+        return GetSimpleResponse(message, null);
+    }
+    
+    private async Task<string> GetEventChatResponseAsync(string message, int eventId, string? eventName)
+    {
+        var messageLower = message.ToLower();
+        
+        // Handle fixture queries for this specific event
+        if (messageLower.Contains("fixture") || messageLower.Contains("match") || messageLower.Contains("schedule"))
+        {
+            // For event-specific chat, show all fixtures for this event
+            return await GetEventFixturesAsync(eventId, eventName);
+        }
+        
+        // Handle registration for this event
+        if (messageLower.Contains("register") || messageLower.Contains("sign up") || messageLower.Contains("join"))
+        {
+            return $"🏆 *Register for {eventName}*\n\n" +
+                   "To register your team, I'll need:\n" +
+                   "• Team name\n" +
+                   "• School/organization name\n" +
+                   "• Age group\n" +
+                   "• Coach name and contact\n\n" +
+                   "Let's start - what's your team name?";
+        }
+        
+        // Event-specific info
+        if (messageLower.Contains("info") || messageLower.Contains("detail") || messageLower.Contains("about"))
+        {
+            return await GetEventDetailsAsync(eventId);
+        }
+        
+        return GetSimpleResponse(message, eventName);
+    }
+    
+    private string ExtractTeamOrCoachName(string message, string messageLower)
+    {
+        // Try to extract team name after "for", "of", or coach name after "coach"
+        if (messageLower.Contains(" for "))
+        {
+            var parts = message.Split(" for ", StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 1)
+            {
+                return parts[1].Trim();
+            }
+        }
+        
+        if (messageLower.Contains("coach "))
+        {
+            var parts = message.Split("coach ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length > 1)
+            {
+                return parts[1].Trim();
+            }
+        }
+        
+        return string.Empty;
+    }
+    
+    private async Task<string> GetEventDetailsAsync(int eventId)
+    {
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            var apiUrl = _configuration["API:BaseUrl"] ?? "https://sporthub-rng4.onrender.com";
+            
+            var response = await httpClient.GetAsync($"{apiUrl}/Events/{eventId}");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var evt = JsonSerializer.Deserialize<JsonElement>(json, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+                
+                var name = evt.GetProperty("name").GetString();
+                var sport = evt.GetProperty("sport").GetString();
+                var startDate = evt.GetProperty("startDate").GetDateTime();
+                var location = evt.TryGetProperty("location", out var loc) ? loc.GetString() : "TBD";
+                var ageGroups = evt.TryGetProperty("ageGroups", out var ag) ? ag.GetString() : "";
+                
+                return $"🏆 *{name}*\n\n" +
+                       $"Sport: {sport}\n" +
+                       $"📅 Date: {startDate:MMMM dd, yyyy}\n" +
+                       $"📍 Location: {location}\n" +
+                       $"👥 Age Groups: {ageGroups}\n\n" +
+                       "What would you like to know more about?";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching event details");
+        }
+        
+        return "I can help you with this event! Ask me about fixtures, registration, or rules.";
+    }
+    
+    private async Task<string> GetEventFixturesAsync(int eventId, string? eventName)
+    {
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            var apiUrl = _configuration["API:BaseUrl"] ?? "https://sporthub-rng4.onrender.com";
+            
+            // Get fixtures for this event
+            var fixturesResponse = await httpClient.GetAsync($"{apiUrl}/Fixtures/{eventId}");
+            if (!fixturesResponse.IsSuccessStatusCode)
+            {
+                return "📋 *No fixtures generated yet*\n\n" +
+                       "Fixtures will be available once the tournament reaches full capacity and fixtures are generated.";
+            }
+
+            var fixturesJson = await fixturesResponse.Content.ReadAsStringAsync();
+            var fixtures = JsonSerializer.Deserialize<List<FixtureInfo>>(fixturesJson, new JsonSerializerOptions 
+            { 
+                PropertyNameCaseInsensitive = true 
+            }) ?? new List<FixtureInfo>();
+
+            if (!fixtures.Any())
+            {
+                return "📋 *No fixtures found for this event*\n\n" +
+                       "Fixtures will be generated once all teams are registered.";
+            }
+            
+            // Format fixtures (same as WhatsApp)
+            var fixtureList = string.Join("\n\n", fixtures
+                .GroupBy(f => f.Id) // Remove duplicates
+                .Select(g => g.First())
+                .OrderBy(f => f.KickOffTime)
+                .Select(f => 
+                {
+                    return $"{f.AgeGroup} {f.Division}\n" +
+                           $"⚽ {f.HomeTeam} vs {f.AwayTeam}\n" +
+                           $"⏰ Kick-off: {f.KickOffTime}\n" +
+                           $"📍 Pitch {(f.PitchId == 0 ? "TBD" : f.PitchId.ToString())}";
+                }));
+            
+            return $"📋 *{eventName ?? "Event"} Fixtures*\n\n{fixtureList}\n\n" +
+                   "Good luck! 🏆";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching event fixtures");
+            return "❌ Unable to fetch fixtures. Please try again later.";
+        }
     }
 
     private async Task<string> GetResponseAsync(string message, string? eventName = null, int? eventId = null, string? teamName = null)
@@ -409,11 +605,17 @@ public class ChatController : ControllerBase
     }
 }
 
-public record ChatRequest(
+// General chat (no event context)
+public record GeneralChatRequest(
     string Message,
-    string? SessionId = null,
-    int? EventId = null,
-    string? TeamName = null
+    string? SessionId = null
+);
+
+// Event-specific chat (coach is viewing a specific event on dashboard)
+public record EventChatRequest(
+    string Message,
+    int EventId,
+    string? SessionId = null
 );
 
 public record ChatResponse(
