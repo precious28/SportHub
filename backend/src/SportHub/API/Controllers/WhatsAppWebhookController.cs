@@ -537,30 +537,55 @@ public class WhatsAppWebhookController : ControllerBase
                 return new List<FixtureInfo>();
             }
 
-            // Get fixtures for these teams
-            var allFixtures = new List<FixtureInfo>();
-            var fixturesResponse = await httpClient.GetAsync($"{apiUrl}/Fixtures");
-            
-            if (fixturesResponse.IsSuccessStatusCode)
+            // Get all fixtures from all events
+            var eventsResponse = await httpClient.GetAsync($"{apiUrl}/Events");
+            if (!eventsResponse.IsSuccessStatusCode)
             {
-                var fixturesJson = await fixturesResponse.Content.ReadAsStringAsync();
-                var fixtures = JsonSerializer.Deserialize<List<FixtureInfo>>(fixturesJson, new JsonSerializerOptions 
-                { 
-                    PropertyNameCaseInsensitive = true 
-                }) ?? new List<FixtureInfo>();
+                _logger.LogWarning("Failed to fetch events");
+                return new List<FixtureInfo>();
+            }
 
-                _logger.LogInformation("Found {Count} total fixtures", fixtures.Count);
+            var eventsJson = await eventsResponse.Content.ReadAsStringAsync();
+            var events = JsonSerializer.Deserialize<List<JsonElement>>(eventsJson, new JsonSerializerOptions 
+            { 
+                PropertyNameCaseInsensitive = true 
+            }) ?? new List<JsonElement>();
 
-                // Filter fixtures where user's teams are playing
-                foreach (var team in userTeams)
+            var allFixtures = new List<FixtureInfo>();
+
+            // Get fixtures for each event
+            foreach (var evt in events)
+            {
+                if (evt.TryGetProperty("id", out var idProp))
                 {
-                    var teamFixtures = fixtures.Where(f => 
-                        f.HomeTeam == team.Name || f.AwayTeam == team.Name).ToList();
+                    var eventId = idProp.GetInt32();
+                    var fixturesResponse = await httpClient.GetAsync($"{apiUrl}/Fixtures/{eventId}");
                     
-                    _logger.LogInformation("Team '{TeamName}' has {Count} fixtures", 
-                        team.Name, teamFixtures.Count);
-                    
-                    allFixtures.AddRange(teamFixtures);
+                    if (fixturesResponse.IsSuccessStatusCode)
+                    {
+                        var fixturesJson = await fixturesResponse.Content.ReadAsStringAsync();
+                        var fixtures = JsonSerializer.Deserialize<List<FixtureInfo>>(fixturesJson, new JsonSerializerOptions 
+                        { 
+                            PropertyNameCaseInsensitive = true 
+                        }) ?? new List<FixtureInfo>();
+
+                        _logger.LogInformation("Event {EventId} has {Count} fixtures", eventId, fixtures.Count);
+
+                        // Filter fixtures where user's teams are playing
+                        foreach (var team in userTeams)
+                        {
+                            var teamFixtures = fixtures.Where(f => 
+                                f.HomeTeam == team.Name || f.AwayTeam == team.Name).ToList();
+                            
+                            if (teamFixtures.Any())
+                            {
+                                _logger.LogInformation("Team '{TeamName}' has {Count} fixtures in event {EventId}", 
+                                    team.Name, teamFixtures.Count, eventId);
+                            }
+                            
+                            allFixtures.AddRange(teamFixtures);
+                        }
+                    }
                 }
             }
 
