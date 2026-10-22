@@ -55,11 +55,17 @@ public class FixtureInfo
 {
     public int Id { get; set; }
     public string EventName { get; set; } = string.Empty;
+    
+    [JsonPropertyName("homeTeamName")]
     public string HomeTeam { get; set; } = string.Empty;
+    
+    [JsonPropertyName("awayTeamName")]
     public string AwayTeam { get; set; } = string.Empty;
+    
     public DateTime MatchDate { get; set; }
     public string MatchTime { get; set; } = string.Empty;
     public string Pitch { get; set; } = string.Empty;
+    public string KickOffTime { get; set; } = string.Empty;
 }
 
 // Twilio-specific models
