@@ -142,7 +142,9 @@ public class WhatsAppWebhookController : ControllerBase
             else if (messageLower.Contains("fixture"))
             {
                 // Query fixtures
+                _logger.LogInformation("Fetching fixtures for user: {UserId}", userId);
                 var fixtures = await GetUserFixturesAsync(userId);
+                
                 if (fixtures.Any())
                 {
                     var fixtureList = string.Join("\n\n", fixtures.Select(f => 
@@ -151,9 +153,17 @@ public class WhatsAppWebhookController : ControllerBase
                         $"⚽ {f.HomeTeam} vs {f.AwayTeam}\n" +
                         $"📍 {f.Pitch}"));
                     
-                    return $"📋 *Your Upcoming Fixtures*\n\n{fixtureList}";
+                    return $"📋 *Your Upcoming Fixtures*\n\n{fixtureList}\n\n" +
+                           "Type 'events' to see other tournaments!";
                 }
-                return "You don't have any fixtures yet. Register your team first!";
+                
+                _logger.LogWarning("No fixtures found for user: {UserId}", userId);
+                return "📋 *No fixtures found*\n\n" +
+                       "This could mean:\n" +
+                       "• Your team hasn't been registered yet\n" +
+                       "• Fixtures haven't been generated for your event\n" +
+                       "• Your phone number doesn't match our records\n\n" +
+                       "Type *register* to sign up your team!";
             }
             else
             {
@@ -477,14 +487,24 @@ public class WhatsAppWebhookController : ControllerBase
         {
             var httpClient = _httpClientFactory.CreateClient();
             var apiUrl = _configuration["API:BaseUrl"] ?? "https://sporthub-rng4.onrender.com";
-            var phoneNumber = userId.Replace("whatsapp:", "");
             
-            // Get all fixtures and filter by coach phone
-            // First, get teams registered with this phone number
+            // Clean phone number - remove whatsapp:, +, spaces, and hyphens
+            var phoneNumber = userId
+                .Replace("whatsapp:", "")
+                .Replace("+", "")
+                .Replace(" ", "")
+                .Replace("-", "")
+                .Trim();
+            
+            _logger.LogInformation("Looking for teams with phone: {Phone} (cleaned from {UserId})", 
+                phoneNumber, userId);
+            
+            // Get all teams
             var teamsResponse = await httpClient.GetAsync($"{apiUrl}/Teams");
             
             if (!teamsResponse.IsSuccessStatusCode)
             {
+                _logger.LogWarning("Failed to fetch teams: {StatusCode}", teamsResponse.StatusCode);
                 return new List<FixtureInfo>();
             }
 
@@ -494,8 +514,23 @@ public class WhatsAppWebhookController : ControllerBase
                 PropertyNameCaseInsensitive = true 
             }) ?? new List<TeamInfo>();
 
-            // Find teams with this phone number
-            var userTeams = allTeams.Where(t => t.CoachPhone?.Replace("+", "").Replace(" ", "") == phoneNumber.Replace("+", "").Replace(" ", "")).ToList();
+            _logger.LogInformation("Found {Count} total teams", allTeams.Count);
+
+            // Find teams with this phone number (flexible matching)
+            var userTeams = allTeams.Where(t => 
+            {
+                if (string.IsNullOrEmpty(t.CoachPhone)) return false;
+                
+                var cleanTeamPhone = t.CoachPhone
+                    .Replace("+", "")
+                    .Replace(" ", "")
+                    .Replace("-", "")
+                    .Trim();
+                
+                return cleanTeamPhone.EndsWith(phoneNumber) || phoneNumber.EndsWith(cleanTeamPhone);
+            }).ToList();
+            
+            _logger.LogInformation("Found {Count} teams for this phone number", userTeams.Count);
             
             if (!userTeams.Any())
             {
@@ -504,29 +539,33 @@ public class WhatsAppWebhookController : ControllerBase
 
             // Get fixtures for these teams
             var allFixtures = new List<FixtureInfo>();
+            var fixturesResponse = await httpClient.GetAsync($"{apiUrl}/Fixtures");
             
-            foreach (var team in userTeams)
+            if (fixturesResponse.IsSuccessStatusCode)
             {
-                var fixturesResponse = await httpClient.GetAsync($"{apiUrl}/Fixtures");
-                
-                if (fixturesResponse.IsSuccessStatusCode)
-                {
-                    var fixturesJson = await fixturesResponse.Content.ReadAsStringAsync();
-                    var fixtures = JsonSerializer.Deserialize<List<FixtureInfo>>(fixturesJson, new JsonSerializerOptions 
-                    { 
-                        PropertyNameCaseInsensitive = true 
-                    }) ?? new List<FixtureInfo>();
+                var fixturesJson = await fixturesResponse.Content.ReadAsStringAsync();
+                var fixtures = JsonSerializer.Deserialize<List<FixtureInfo>>(fixturesJson, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                }) ?? new List<FixtureInfo>();
 
-                    // Filter fixtures where this team is playing
+                _logger.LogInformation("Found {Count} total fixtures", fixtures.Count);
+
+                // Filter fixtures where user's teams are playing
+                foreach (var team in userTeams)
+                {
                     var teamFixtures = fixtures.Where(f => 
                         f.HomeTeam == team.Name || f.AwayTeam == team.Name).ToList();
+                    
+                    _logger.LogInformation("Team '{TeamName}' has {Count} fixtures", 
+                        team.Name, teamFixtures.Count);
                     
                     allFixtures.AddRange(teamFixtures);
                 }
             }
 
             // Return future fixtures only, sorted by date
-            return allFixtures
+            var futureFixtures = allFixtures
                 .Where(f => f.MatchDate >= DateTime.Today)
                 .OrderBy(f => f.MatchDate)
                 .ThenBy(f => f.MatchTime)
