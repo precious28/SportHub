@@ -147,11 +147,45 @@ public class WhatsAppWebhookController : ControllerBase
                 
                 if (fixtures.Any())
                 {
-                    var fixtureList = string.Join("\n\n", fixtures.Select(f => 
-                        $"🏆 *Event {f.EventId}* - {f.AgeGroup} {f.Division}\n" +
-                        $"⚽ {f.HomeTeam} vs {f.AwayTeam}\n" +
-                        $"⏰ Kick-off: {f.KickOffTime}\n" +
-                        $"📍 Pitch {f.PitchId}"));
+                    // Fetch event names for better display
+                    var httpClient = _httpClientFactory.CreateClient();
+                    var apiUrl = _configuration["API:BaseUrl"] ?? "https://sporthub-rng4.onrender.com";
+                    var eventIds = fixtures.Select(f => f.EventId).Distinct().ToList();
+                    var eventNames = new Dictionary<int, string>();
+                    
+                    foreach (var evtId in eventIds)
+                    {
+                        var eventResponse = await httpClient.GetAsync($"{apiUrl}/Events/{evtId}");
+                        if (eventResponse.IsSuccessStatusCode)
+                        {
+                            var eventJson = await eventResponse.Content.ReadAsStringAsync();
+                            var eventData = JsonSerializer.Deserialize<JsonElement>(eventJson, new JsonSerializerOptions 
+                            { 
+                                PropertyNameCaseInsensitive = true 
+                            });
+                            
+                            if (eventData.TryGetProperty("name", out var nameProp))
+                            {
+                                eventNames[evtId] = nameProp.GetString() ?? $"Event {evtId}";
+                            }
+                        }
+                    }
+                    
+                    var fixtureList = string.Join("\n\n", fixtures
+                        .GroupBy(f => f.Id) // Remove duplicates by fixture ID
+                        .Select(g => g.First())
+                        .Select(f => 
+                        {
+                            var eventName = eventNames.ContainsKey(f.EventId) 
+                                ? eventNames[f.EventId] 
+                                : $"Event {f.EventId}";
+                            
+                            return $"🏆 *{eventName}*\n" +
+                                   $"{f.AgeGroup} {f.Division}\n" +
+                                   $"⚽ {f.HomeTeam} vs {f.AwayTeam}\n" +
+                                   $"⏰ Kick-off: {f.KickOffTime}\n" +
+                                   $"📍 Pitch {(f.PitchId == 0 ? "TBD" : f.PitchId.ToString())}";
+                        }));
                     
                     return $"📋 *Your Upcoming Fixtures*\n\n{fixtureList}\n\n" +
                            "Type 'events' to see other tournaments!";

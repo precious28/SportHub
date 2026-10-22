@@ -39,6 +39,9 @@ public class FixtureService
 
     public async Task<List<FixtureResponse>> GenerateAsync(GenerateFixturesRequest request)
     {
+        // DEBUG LOG
+        Console.WriteLine($"[DEBUG] GenerateAsync called with EventId={request.EventId}, PitchId={request.PitchId}");
+        
         var ev = await events.GetByIdAsync(request.EventId);
         if (ev is null) return [];
 
@@ -151,6 +154,9 @@ public class FixtureService
 
     private Task<List<Fixture>> GenerateSmartFixtures(Dictionary<string, List<int>> teamsByAgeAndDivision, Event ev, int pitchId)
     {
+        // DEBUG LOG
+        Console.WriteLine($"[DEBUG] GenerateSmartFixtures called with pitchId={pitchId}");
+        
         var fixtures = new List<Fixture>();
         var startMinutes = TimeSpan.Parse(ev.PitchStartTime, CultureInfo.InvariantCulture).TotalMinutes;
         var endMinutes = TimeSpan.Parse(ev.PitchEndTime, CultureInfo.InvariantCulture).TotalMinutes;
@@ -238,6 +244,9 @@ public class FixtureService
                     PitchId = pitchId,
                     KickOffTime = kickOff
                 };
+
+                // DEBUG LOG
+                Console.WriteLine($"[DEBUG] Creating fixture: EventId={ev.Id}, HomeTeam={home}, AwayTeam={away}, PitchId={pitchId}, KickOff={kickOff}");
 
                 fixtures.Add(fixture);
 

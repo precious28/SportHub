@@ -61,7 +61,17 @@ public class FixtureRepository(SportHubDbContext db) : IFixtureRepository
 {
     public Task<List<Fixture>> GetByEventIdAsync(int eventId) =>
         db.Fixtures.Where(f => f.EventId == eventId).ToListAsync();
-    public async Task SaveAsync(Fixture fixture) { db.Fixtures.Add(fixture); await db.SaveChangesAsync(); }
+    public async Task SaveAsync(Fixture fixture) 
+    { 
+        // DEBUG LOG
+        Console.WriteLine($"[DEBUG] FixtureRepository.SaveAsync - BEFORE Save: PitchId={fixture.PitchId}, HomeTeam={fixture.HomeTeamId}, AwayTeam={fixture.AwayTeamId}");
+        
+        db.Fixtures.Add(fixture); 
+        await db.SaveChangesAsync(); 
+        
+        // DEBUG LOG
+        Console.WriteLine($"[DEBUG] FixtureRepository.SaveAsync - AFTER Save: PitchId={fixture.PitchId}, Id={fixture.Id}");
+    }
 }
 
 public class NotificationRepository(SportHubDbContext db) : INotificationRepository
