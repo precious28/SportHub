@@ -64,12 +64,11 @@ public class ChatController : ControllerBase
                 }
             }
 
-            var result = new ChatResponse
-            {
-                SessionId = invokeRequest.SessionId,
-                Response = responseText.ToString(),
-                Timestamp = DateTime.UtcNow
-            };
+            var result = new ChatResponse(
+                invokeRequest.SessionId,
+                responseText.ToString(),
+                DateTime.UtcNow
+            );
 
             _logger.LogInformation("Bedrock response: {Response}", result.Response);
 
