@@ -148,10 +148,10 @@ public class WhatsAppWebhookController : ControllerBase
                 if (fixtures.Any())
                 {
                     var fixtureList = string.Join("\n\n", fixtures.Select(f => 
-                        $"🏆 *{f.EventName}*\n" +
-                        $"📅 {f.MatchDate:MMM dd, yyyy} at {f.MatchTime}\n" +
+                        $"🏆 *Event {f.EventId}* - {f.AgeGroup} {f.Division}\n" +
                         $"⚽ {f.HomeTeam} vs {f.AwayTeam}\n" +
-                        $"📍 {f.Pitch}"));
+                        $"⏰ Kick-off: {f.KickOffTime}\n" +
+                        $"📍 Pitch {f.PitchId}"));
                     
                     return $"📋 *Your Upcoming Fixtures*\n\n{fixtureList}\n\n" +
                            "Type 'events' to see other tournaments!";
