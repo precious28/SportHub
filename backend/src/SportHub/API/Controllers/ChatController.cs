@@ -32,12 +32,18 @@ public class ChatController : ControllerBase
         {
             var sessionId = request.SessionId ?? Guid.NewGuid().ToString();
             
-            _logger.LogInformation("Chat request received: {Message}, Session: {SessionId}", 
-                request.Message, sessionId);
+            _logger.LogInformation("Chat request received: {Message}, Session: {SessionId}, EventId: {EventId}", 
+                request.Message, sessionId, request.EventId);
+
+            // Get event info if eventId provided
+            string? eventContext = null;
+            if (request.EventId.HasValue)
+            {
+                eventContext = await GetEventContextAsync(request.EventId.Value);
+            }
 
             // Simple keyword-based responses 
-            // TODO: Replace with actual Bedrock Harness invocation
-            var response = GetSimpleResponse(request.Message);
+            var response = GetSimpleResponse(request.Message, eventContext);
 
             var result = new ChatResponse(
                 sessionId,
@@ -56,18 +62,48 @@ public class ChatController : ControllerBase
         }
     }
 
-    private string GetSimpleResponse(string message)
+    private async Task<string?> GetEventContextAsync(int eventId)
+    {
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            var apiUrl = _configuration["API:BaseUrl"] ?? "https://sporthub-rng4.onrender.com";
+            
+            var response = await httpClient.GetAsync($"{apiUrl}/Events/{eventId}");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var eventInfo = JsonSerializer.Deserialize<JsonElement>(json);
+                var name = eventInfo.GetProperty("name").GetString();
+                return name;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get event context for {EventId}", eventId);
+        }
+        return null;
+    }
+
+    private string GetSimpleResponse(string message, string? eventName = null)
     {
         var messageLower = message.ToLower();
 
         if (messageLower.Contains("hello") || messageLower.Contains("hi"))
         {
-            return "👋 Hello Coach! I'm your SportHub AI assistant.\n\n" +
+            var greeting = "👋 Hello Coach! I'm your SportHub AI assistant.";
+            if (!string.IsNullOrEmpty(eventName))
+            {
+                greeting = $"👋 Welcome to *{eventName}*! I'm your tournament assistant.";
+            }
+            
+            return greeting + "\n\n" +
                    "I can help you with:\n" +
-                   "• *Register* - Register your team for a tournament\n" +
-                   "• *Fixtures* - View your team's match schedule\n" +
-                   "• *Events* - Browse upcoming tournaments\n" +
-                   "• *Rules* - Tournament rules and FAQs\n\n" +
+                   "• *Register* - Register your team\n" +
+                   "• *Event info* - Tournament details\n" +
+                   "• *Fixtures* - View match schedules\n" +
+                   "• *Rules* - Tournament rules & FAQs\n" +
+                   "• *Help* - Show this menu\n\n" +
                    "What would you like to do?";
         }
         else if (messageLower.Contains("event") || messageLower.Contains("tournament"))
@@ -136,7 +172,8 @@ public class ChatController : ControllerBase
 
 public record ChatRequest(
     string Message,
-    string? SessionId = null
+    string? SessionId = null,
+    int? EventId = null
 );
 
 public record ChatResponse(
