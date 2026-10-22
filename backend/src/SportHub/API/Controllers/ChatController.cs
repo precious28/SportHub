@@ -62,23 +62,60 @@ public class ChatController : ControllerBase
 
         if (messageLower.Contains("hello") || messageLower.Contains("hi"))
         {
-            return "👋 Hello! I'm your SportHub AI assistant. I can help you with tournaments, registrations, and fixtures. What would you like to know?";
+            return "👋 Hello Coach! I'm your SportHub AI assistant.\n\n" +
+                   "I can help you with:\n" +
+                   "• *Register* - Register your team for a tournament\n" +
+                   "• *Fixtures* - View your team's match schedule\n" +
+                   "• *Events* - Browse upcoming tournaments\n" +
+                   "• *Rules* - Tournament rules and FAQs\n\n" +
+                   "What would you like to do?";
         }
         else if (messageLower.Contains("event") || messageLower.Contains("tournament"))
         {
-            return "I can help you with tournaments! You can:\n• View upcoming events\n• Create new tournaments\n• Register teams\n\nWhat would you like to do?";
+            return "📅 I can show you upcoming tournaments!\n\n" +
+                   "You can:\n" +
+                   "• View available tournaments\n" +
+                   "• See tournament details\n" +
+                   "• Register your team\n\n" +
+                   "Would you like to see the list of upcoming events?";
         }
         else if (messageLower.Contains("register") || messageLower.Contains("sign up"))
         {
-            return "Great! To register your team, I'll need:\n• Team name\n• School/organization\n• Age group\n• Coach details\n\nWhich tournament are you interested in?";
+            return "🏆 Great! Let's register your team.\n\n" +
+                   "I'll need:\n" +
+                   "• Team name\n" +
+                   "• School/organization name\n" +
+                   "• Age group\n" +
+                   "• Coach name and contact\n\n" +
+                   "First, which tournament would you like to register for?";
         }
-        else if (messageLower.Contains("fixture"))
+        else if (messageLower.Contains("fixture") || messageLower.Contains("match") || messageLower.Contains("schedule"))
         {
-            return "I can help you generate or view fixtures. Would you like to:\n• Generate fixtures for an event\n• View existing fixtures\n• Check match schedules?";
+            return "📋 I can show you your team's fixtures!\n\n" +
+                   "To view your match schedule, please provide:\n" +
+                   "• Your team name, or\n" +
+                   "• The tournament name\n\n" +
+                   "What's your team name?";
+        }
+        else if (messageLower.Contains("rule") || messageLower.Contains("regulation") || messageLower.Contains("faq"))
+        {
+            return "📖 *Tournament Rules & FAQs*\n\n" +
+                   "• Match duration varies by age group\n" +
+                   "• Registration fee: R500 per team\n" +
+                   "• Minimum 7 days before event\n" +
+                   "• Required: Team jerseys, shin guards\n" +
+                   "• Fair play mandatory\n\n" +
+                   "Need specific information about rules or have questions?";
         }
         else
         {
-            return "I'm here to help with SportHub tournaments! You can ask me about:\n• Upcoming events\n• Team registration\n• Fixtures and schedules\n• Tournament rules\n\nWhat would you like to know?";
+            return "I'm here to help with SportHub tournaments! 🏆\n\n" +
+                   "Ask me about:\n" +
+                   "• *Events* - Upcoming tournaments\n" +
+                   "• *Register* - Sign up your team\n" +
+                   "• *Fixtures* - View match schedules\n" +
+                   "• *Rules* - Tournament regulations\n\n" +
+                   "What can I help you with?";
         }
     }
 
