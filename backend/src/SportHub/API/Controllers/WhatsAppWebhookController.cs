@@ -570,6 +570,8 @@ public class WhatsAppWebhookController : ControllerBase
                 .OrderBy(f => f.MatchDate)
                 .ThenBy(f => f.MatchTime)
                 .ToList();
+            
+            return futureFixtures;
         }
         catch (Exception ex)
         {
