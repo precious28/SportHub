@@ -85,6 +85,40 @@ public class ChatController : ControllerBase
         return null;
     }
 
+    private async Task<List<(int id, string name, DateTime startDate)>> GetEventsAsync()
+    {
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            var apiUrl = _configuration["API:BaseUrl"] ?? "https://sporthub-rng4.onrender.com";
+            
+            var response = await httpClient.GetAsync($"{apiUrl}/Events");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var events = JsonSerializer.Deserialize<List<JsonElement>>(json, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                }) ?? new List<JsonElement>();
+                
+                return events
+                    .Select(e => (
+                        id: e.GetProperty("id").GetInt32(),
+                        name: e.GetProperty("name").GetString() ?? "",
+                        startDate: e.GetProperty("startDate").GetDateTime()
+                    ))
+                    .Where(e => e.startDate >= DateTime.Today)
+                    .OrderBy(e => e.startDate)
+                    .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch events");
+        }
+        return new List<(int, string, DateTime)>();
+    }
+
     private string GetSimpleResponse(string message, string? eventName = null)
     {
         var messageLower = message.ToLower();
