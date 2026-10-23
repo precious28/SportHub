@@ -5,6 +5,7 @@ using SportHub.Infrastructure.Data;
 using Amazon.SimpleEmail;
 using Amazon.SimpleNotificationService;
 using Amazon.BedrockAgentRuntime;
+using Amazon.BedrockAgentCore;
 using Amazon.SocialMessaging;
 using Amazon.Extensions.NETCore.Setup;
 
@@ -39,6 +40,7 @@ builder.Services.AddScoped<WhatsAppService>();
 builder.Services.AddScoped<EmailNotificationService>();
 builder.Services.AddScoped<TwilioWhatsAppService>();
 builder.Services.AddScoped<AwsWhatsAppService>();
+builder.Services.AddScoped<BedrockHarnessService>();
 
 // HTTP Client for API calls
 builder.Services.AddHttpClient();
@@ -51,6 +53,7 @@ awsOptions.Region = Amazon.RegionEndpoint.GetBySystemName(
 builder.Services.AddAWSService<IAmazonSimpleEmailService>(awsOptions);
 builder.Services.AddAWSService<IAmazonSimpleNotificationService>(awsOptions);
 builder.Services.AddAWSService<IAmazonSocialMessaging>(awsOptions);
+builder.Services.AddAWSService<IAmazonBedrockAgentCore>(awsOptions);
 
 // Bedrock Agent Runtime - may use different credentials
 var bedrockAccessKey = builder.Configuration["AWS:BedrockAccessKeyId"];
