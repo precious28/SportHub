@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
-Bedrock AgentCore Harness Service
+Bedrock AgentCore Harness Service (DEPRECATED - Use lambda_function.py)
+
+⚠️ This is the OLD Flask/Render.com version.
+⚠️ NOW USING: lambda_function.py deployed on AWS Lambda
+⚠️ Keeping this file as reference/backup only.
+
 Provides HTTP endpoint for invoking the SportHub Bedrock Harness
 """
 
