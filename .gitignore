@@ -1,18 +1,47 @@
-# Build outputs
+# Build and deployment artifacts
+backend/lambda_deployment.zip
+backend/lambda_package/
+backend/lambda_deployment/
+
+# .NET Build artifacts
 **/bin/
 **/obj/
+**/.vs/
 
 # User-specific files
 *.user
 *.suo
-.vs/
+*.userosscache
+*.sln.docstates
 
-# macOS
+# Environment files (contain secrets)
+**/appsettings.Development.json
+**/.env
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
 .DS_Store
-**/.DS_Store
+Thumbs.db
 
-# Environment
-appsettings.Development.json
+# Logs
+*.log
 
-# Continue AI config (may contain API keys)
-.continue/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+
+# AWS
+.aws/
+
+# Render
+render.yaml
