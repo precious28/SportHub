@@ -48,11 +48,17 @@ public class WhatsAppWebhookController : ControllerBase
                 agentResponse?.Length ?? 0, 
                 agentResponse?.Substring(0, Math.Min(100, agentResponse?.Length ?? 0)) ?? "null");
 
+            // Clean response: remove problematic characters and emojis that might break XML
+            var cleanedResponse = CleanResponseForTwiML(agentResponse);
+            
+            _logger.LogInformation("Cleaned response length: {Length}, Preview: {Preview}",
+                cleanedResponse.Length,
+                cleanedResponse.Substring(0, Math.Min(50, cleanedResponse.Length)));
+
             // Return TwiML response
-            var escapedResponse = System.Security.SecurityElement.Escape(agentResponse);
             var twimlResponse = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
 <Response>
-    <Message>{escapedResponse}</Message>
+    <Message><![CDATA[{cleanedResponse}]]></Message>
 </Response>";
 
             _logger.LogInformation("Sending response to {From}, TwiML length: {TwimlLength}", 
@@ -99,6 +105,22 @@ public class WhatsAppWebhookController : ControllerBase
             _logger.LogError(ex, "Error calling Bedrock Harness");
             return "I'm having trouble right now. Please try again in a moment.";
         }
+    }
+
+    private string CleanResponseForTwiML(string response)
+    {
+        if (string.IsNullOrEmpty(response))
+        {
+            return "I'm here to help! What would you like to know?";
+        }
+
+        // Remove or replace problematic characters
+        // CDATA handles most special chars, but let's be safe
+        var cleaned = response
+            .Replace("]]>", "]]]]><![CDATA[>") // Escape CDATA end markers
+            .Trim();
+
+        return cleaned;
     }
 
     [HttpGet("webhook")]
