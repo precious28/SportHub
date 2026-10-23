@@ -1,24 +1,22 @@
-using Amazon.Runtime;
-using Amazon.BedrockAgentRuntime;
-using Amazon.BedrockAgentRuntime.Model;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text;
+using System.Text.Json;
 
 namespace SportHub.Application.Services;
 
 public class BedrockHarnessService
 {
-    private readonly IAmazonBedrockAgentRuntime _bedrockClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<BedrockHarnessService> _logger;
 
     public BedrockHarnessService(
-        IAmazonBedrockAgentRuntime bedrockClient,
+        IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
         ILogger<BedrockHarnessService> logger)
     {
-        _bedrockClient = bedrockClient;
+        _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _logger = logger;
     }
@@ -27,48 +25,51 @@ public class BedrockHarnessService
     {
         try
         {
-            _logger.LogWarning("Bedrock AgentCore Harness API integration requires direct REST API call - not yet implemented");
-            _logger.LogInformation("User message: {Message}, Session: {SessionId}", userMessage, sessionId);
+            // Call Python Bedrock Harness service
+            var pythonServiceUrl = _configuration["Bedrock:PythonServiceUrl"] ?? "http://localhost:5001";
             
-            // TODO: Implement direct REST API call to AgentCore Harness endpoint
-            // The AWS SDK BedrockAgentRuntime is for classic agents, not AgentCore Harness
-            // AgentCore uses a different API: https://bedrock-agentcore-runtime.{region}.amazonaws.com
+            var httpClient = _httpClientFactory.CreateClient();
             
-            // For hackathon demo, return helpful message guiding users
-            var messageLower = userMessage.ToLower();
-            
-            if (messageLower.Contains("register") || messageLower.Contains("sign up"))
+            var requestBody = new
             {
-                return "🏆 To register your team, I need:\n" +
-                       "1. Team name\n" +
-                       "2. School/organization\n" +
-                       "3. Coach details\n\n" +
-                       "Reply 'start registration' and I'll guide you!";
+                message = userMessage,
+                sessionId = sessionId
+            };
+            
+            var content = new StringContent(
+                JsonSerializer.Serialize(requestBody),
+                Encoding.UTF8,
+                "application/json"
+            );
+            
+            _logger.LogInformation("Calling Bedrock Harness service - Session: {SessionId}, Message: {Message}", 
+                sessionId, userMessage.Substring(0, Math.Min(50, userMessage.Length)));
+            
+            var response = await httpClient.PostAsync($"{pythonServiceUrl}/invoke", content);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Bedrock service returned {StatusCode}", response.StatusCode);
+                return "I'm here to help! What would you like to know?";
             }
             
-            if (messageLower.Contains("fixture") || messageLower.Contains("match"))
-            {
-                return "📋 To check fixtures, please provide your team name or coach name.\n\n" +
-                       "Example: 'Fixtures for Pretoria Ladies'";
-            }
+            var responseJson = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<BedrockResponse>(responseJson);
             
-            if (messageLower.Contains("event") || messageLower.Contains("tournament"))
-            {
-                return "📅 View upcoming tournaments and details.\n\n" +
-                       "What would you like to know?";
-            }
+            _logger.LogInformation("Received response from Bedrock Harness");
             
-            return "👋 Welcome to SportHub!\n\n" +
-                   "I can help with:\n" +
-                   "• Register your team\n" +
-                   "• View fixtures\n" +
-                   "• Tournament info\n\n" +
-                   "What do you need?";
+            return result?.Response ?? "I'm here to help! What would you like to know?";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in Bedrock service");
-            return "I'm here to help! Try: 'register', 'fixtures', or 'events'";
+            _logger.LogError(ex, "Error calling Bedrock Harness service");
+            return "I'm here to help! Try asking about events, fixtures, or registration.";
         }
+    }
+    
+    private class BedrockResponse
+    {
+        public string Response { get; set; } = string.Empty;
+        public string SessionId { get; set; } = string.Empty;
     }
 }
