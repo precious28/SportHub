@@ -54,9 +54,16 @@ public class BedrockHarnessService
             }
             
             var responseJson = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize<BedrockResponse>(responseJson);
             
-            _logger.LogInformation("Received response from Bedrock Harness");
+            // Use case-insensitive deserialization to match Python's lowercase property names
+            var options = new JsonSerializerOptions 
+            { 
+                PropertyNameCaseInsensitive = true 
+            };
+            var result = JsonSerializer.Deserialize<BedrockResponse>(responseJson, options);
+            
+            _logger.LogInformation("Received response from Bedrock Harness: {ResponseLength} chars", 
+                result?.Response?.Length ?? 0);
             
             return result?.Response ?? "I'm here to help! What would you like to know?";
         }
