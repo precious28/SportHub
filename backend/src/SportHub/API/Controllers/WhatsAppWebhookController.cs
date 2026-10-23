@@ -114,11 +114,20 @@ public class WhatsAppWebhookController : ControllerBase
             return "I'm here to help! What would you like to know?";
         }
 
-        // Remove or replace problematic characters
-        // CDATA handles most special chars, but let's be safe
+        // Twilio WhatsApp has a 1600 character limit
+        const int maxLength = 1500; // Leave buffer for safety
+        
         var cleaned = response
             .Replace("]]>", "]]]]><![CDATA[>") // Escape CDATA end markers
             .Trim();
+
+        // Truncate if too long
+        if (cleaned.Length > maxLength)
+        {
+            cleaned = cleaned.Substring(0, maxLength) + "...\n\n(Message truncated. Ask for specific details!)";
+            _logger.LogWarning("Response truncated from {OriginalLength} to {MaxLength} characters", 
+                response.Length, maxLength);
+        }
 
         return cleaned;
     }
