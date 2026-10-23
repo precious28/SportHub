@@ -27,12 +27,16 @@ public class BedrockHarnessService
     {
         try
         {
-            // AgentCore Harness details from AWS console
-            var agentId = "amusema_sports_agent-Azjer58UxL"; // Your Harness ID
-            var agentAliasId = "DEFAULT"; // Using DEFAULT endpoint
+            // NOTE: AgentCore Harness has a different ID format than classic agents
+            // The Harness ID is: amusema_sports_agent-Azjer58UxL (too long for agentId parameter)
+            // We need to extract just the suffix part: Azjer58UxL
             
-            _logger.LogInformation("Invoking Bedrock Agent: {AgentId}, Session: {SessionId}", 
-                agentId, sessionId);
+            var fullHarnessId = "amusema_sports_agent-Azjer58UxL";
+            var agentId = fullHarnessId.Split('-').Last(); // Get "Azjer58UxL"
+            var agentAliasId = "TSTALIASID"; // Default test alias
+            
+            _logger.LogInformation("Invoking Bedrock Agent: {AgentId} (from Harness {HarnessId}), Session: {SessionId}", 
+                agentId, fullHarnessId, sessionId);
 
             var request = new InvokeAgentRequest
             {
