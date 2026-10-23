@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using SportHub.Application.DTOs;
+using SportHub.Application.Services;
 
 namespace SportHub.API.Controllers;
 
@@ -11,15 +12,18 @@ public class ChatController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<ChatController> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly BedrockHarnessService _bedrockService;
 
     public ChatController(
         IConfiguration configuration,
         ILogger<ChatController> logger,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        BedrockHarnessService bedrockService)
     {
         _configuration = configuration;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+        _bedrockService = bedrockService;
     }
 
     /// <summary>
@@ -35,8 +39,8 @@ public class ChatController : ControllerBase
             _logger.LogInformation("General chat request: {Message}, Session: {SessionId}", 
                 request.Message, sessionId);
 
-            // General chat responses (like WhatsApp without phone number context)
-            var response = await GetGeneralChatResponseAsync(request.Message);
+            // Use Bedrock Harness for intelligent conversational AI
+            var response = await _bedrockService.InvokeAsync(request.Message, sessionId);
 
             var result = new ChatResponse(
                 sessionId,
@@ -67,11 +71,16 @@ public class ChatController : ControllerBase
             _logger.LogInformation("Event chat request: {Message}, Session: {SessionId}, EventId: {EventId}", 
                 request.Message, sessionId, request.EventId);
 
-            // Get event info
+            // Get event info for context
             string? eventName = await GetEventContextAsync(request.EventId);
+            
+            // Prepend event context to the message for Bedrock
+            var contextualMessage = string.IsNullOrEmpty(eventName)
+                ? $"[User is viewing Event ID {request.EventId}] {request.Message}"
+                : $"[User is viewing event: {eventName} (ID: {request.EventId})] {request.Message}";
 
-            // Event-specific chat (coach is looking at Event 4, help them with that event)
-            var response = await GetEventChatResponseAsync(request.Message, request.EventId, eventName);
+            // Use Bedrock Harness with event context
+            var response = await _bedrockService.InvokeAsync(contextualMessage, sessionId);
 
             var result = new ChatResponse(
                 sessionId,
@@ -600,7 +609,7 @@ public class ChatController : ControllerBase
         { 
             status = "healthy",
             timestamp = DateTime.UtcNow,
-            note = "Chat API active. Using pattern-based responses (Bedrock Harness integration pending)."
+            note = "Chat API active with AWS Bedrock AgentCore Harness integration."
         });
     }
 }
