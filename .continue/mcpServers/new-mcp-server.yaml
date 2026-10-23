@@ -1,0 +1,11 @@
+name: sporthub
+version: 0.0.1
+schema: v1
+mcpServers:
+  - name: sporthub
+    command: dotnet
+    args:
+      - run
+      - --project
+      - /Users/precious/Projects/SportHubRepo/backend/src/SportHub
+    env: {}
