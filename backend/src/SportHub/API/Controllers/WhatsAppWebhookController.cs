@@ -44,13 +44,19 @@ public class WhatsAppWebhookController : ControllerBase
             // Call Bedrock Harness for intelligent response
             var agentResponse = await InvokeBedrockHarnessAsync(userMessage, request.From);
 
+            _logger.LogInformation("Agent response length: {Length}, Content preview: {Preview}", 
+                agentResponse?.Length ?? 0, 
+                agentResponse?.Substring(0, Math.Min(100, agentResponse?.Length ?? 0)) ?? "null");
+
             // Return TwiML response
+            var escapedResponse = System.Security.SecurityElement.Escape(agentResponse);
             var twimlResponse = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
 <Response>
-    <Message>{System.Security.SecurityElement.Escape(agentResponse)}</Message>
+    <Message>{escapedResponse}</Message>
 </Response>";
 
-            _logger.LogInformation("Sending response to {From}", request.From);
+            _logger.LogInformation("Sending response to {From}, TwiML length: {TwimlLength}", 
+                request.From, twimlResponse.Length);
 
             return Content(twimlResponse, "application/xml");
         }
