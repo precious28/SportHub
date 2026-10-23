@@ -485,6 +485,24 @@ SportHub/
 
 ## 🐛 Troubleshooting
 
+### Backend on Render is sleeping
+
+**Symptoms:**
+- API requests timeout or take 30-60 seconds on first request
+- Swagger UI loads slowly or not at all
+- WhatsApp bot responds with "I'm here to help! What would you like to know?" (fallback message)
+
+**Cause:** Render.com free tier spins down after 15 minutes of inactivity
+
+**Solutions:**
+1. **Wait 30-60 seconds** for backend to wake up, then try again
+2. **Pre-warm before demo:** Visit `https://sporthub-rng4.onrender.com/swagger` 2 minutes before presenting
+3. **For production:** Upgrade Render to paid tier ($7/mo) or use AWS App Runner
+
+> **Note:** Lambda service does NOT sleep - it's always ready! This only affects the C# backend.
+
+---
+
 ### WhatsApp not responding
 
 **Check:**
@@ -589,6 +607,9 @@ MIT License - Free to use and modify
 
 **WhatsApp Bot:** Send "join wheel-thou" to `+1 415 523 8886`  
 **API Endpoint:** `https://sporthub-rng4.onrender.com`  
+**Swagger/OpenAPI:** `https://sporthub-rng4.onrender.com/swagger`  
 **Lambda Service:** `https://d5i73b0h36.execute-api.eu-west-1.amazonaws.com/default/sporthub-bedrock-service`
+
+> **⚠️ Note:** The backend on Render.com free tier may sleep after 15 minutes of inactivity. If you get no response, wait 30-60 seconds for it to wake up, then try again. The WhatsApp bot and Lambda service remain active.
 
 **Test it now!** 🚀
