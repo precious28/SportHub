@@ -25,7 +25,7 @@ public class BedrockHarnessService
     {
         try
         {
-            // Call Python Bedrock Harness service
+            // Call Bedrock Harness service (Lambda or Render)
             var pythonServiceUrl = _configuration["Bedrock:PythonServiceUrl"] ?? "http://localhost:5001";
             
             var httpClient = _httpClientFactory.CreateClient();
@@ -45,7 +45,12 @@ public class BedrockHarnessService
             _logger.LogInformation("Calling Bedrock Harness service - Session: {SessionId}, Message: {Message}", 
                 sessionId, userMessage.Substring(0, Math.Min(50, userMessage.Length)));
             
-            var response = await httpClient.PostAsync($"{pythonServiceUrl}/invoke", content);
+            // Lambda URLs already include the full path, Render needs /invoke added
+            var endpoint = pythonServiceUrl.Contains("amazonaws.com") 
+                ? pythonServiceUrl  // Lambda - use as is
+                : $"{pythonServiceUrl}/invoke";  // Render - add /invoke
+            
+            var response = await httpClient.PostAsync(endpoint, content);
             
             if (!response.IsSuccessStatusCode)
             {
