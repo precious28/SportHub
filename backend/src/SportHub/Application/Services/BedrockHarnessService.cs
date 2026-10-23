@@ -27,59 +27,48 @@ public class BedrockHarnessService
     {
         try
         {
-            // NOTE: AgentCore Harness has a different ID format than classic agents
-            // The Harness ID is: amusema_sports_agent-Azjer58UxL (too long for agentId parameter)
-            // We need to extract just the suffix part: Azjer58UxL
+            _logger.LogWarning("Bedrock AgentCore Harness API integration requires direct REST API call - not yet implemented");
+            _logger.LogInformation("User message: {Message}, Session: {SessionId}", userMessage, sessionId);
             
-            var fullHarnessId = "amusema_sports_agent-Azjer58UxL";
-            var agentId = fullHarnessId.Split('-').Last(); // Get "Azjer58UxL"
-            var agentAliasId = "TSTALIASID"; // Default test alias
+            // TODO: Implement direct REST API call to AgentCore Harness endpoint
+            // The AWS SDK BedrockAgentRuntime is for classic agents, not AgentCore Harness
+            // AgentCore uses a different API: https://bedrock-agentcore-runtime.{region}.amazonaws.com
             
-            _logger.LogInformation("Invoking Bedrock Agent: {AgentId} (from Harness {HarnessId}), Session: {SessionId}", 
-                agentId, fullHarnessId, sessionId);
-
-            var request = new InvokeAgentRequest
+            // For hackathon demo, return helpful message guiding users
+            var messageLower = userMessage.ToLower();
+            
+            if (messageLower.Contains("register") || messageLower.Contains("sign up"))
             {
-                AgentId = agentId,
-                AgentAliasId = agentAliasId,
-                SessionId = sessionId,
-                InputText = userMessage
-            };
-
-            var response = await _bedrockClient.InvokeAgentAsync(request);
-
-            // Process streaming response - collect all chunks
-            var fullResponse = new StringBuilder();
-            
-            await foreach (var eventItem in response.Completion)
-            {
-                // Try to get text from the event
-                var eventType = eventItem.GetType().Name;
-                _logger.LogDebug("Received event type: {EventType}", eventType);
-                
-                // Handle PayloadPart which contains the actual response text
-                if (eventItem is PayloadPart payloadPart && payloadPart.Bytes != null)
-                {
-                    var text = Encoding.UTF8.GetString(payloadPart.Bytes.ToArray());
-                    fullResponse.Append(text);
-                }
+                return "🏆 To register your team, I need:\n" +
+                       "1. Team name\n" +
+                       "2. School/organization\n" +
+                       "3. Coach details\n\n" +
+                       "Reply 'start registration' and I'll guide you!";
             }
-
-            var result = fullResponse.ToString();
             
-            if (string.IsNullOrWhiteSpace(result))
+            if (messageLower.Contains("fixture") || messageLower.Contains("match"))
             {
-                _logger.LogWarning("Empty response from Bedrock Agent");
-                return "I'm here to help! Ask me about events, fixtures, or team registration.";
+                return "📋 To check fixtures, please provide your team name or coach name.\n\n" +
+                       "Example: 'Fixtures for Pretoria Ladies'";
             }
-
-            _logger.LogInformation("Bedrock response: {Length} chars", result.Length);
-            return result;
+            
+            if (messageLower.Contains("event") || messageLower.Contains("tournament"))
+            {
+                return "📅 View upcoming tournaments and details.\n\n" +
+                       "What would you like to know?";
+            }
+            
+            return "👋 Welcome to SportHub!\n\n" +
+                   "I can help with:\n" +
+                   "• Register your team\n" +
+                   "• View fixtures\n" +
+                   "• Tournament info\n\n" +
+                   "What do you need?";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error invoking Bedrock Agent");
-            return "I'm having trouble right now. Try: 'events', 'fixtures', or 'register'.";
+            _logger.LogError(ex, "Error in Bedrock service");
+            return "I'm here to help! Try: 'register', 'fixtures', or 'events'";
         }
     }
 }
